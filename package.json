@@ -1,0 +1,38 @@
+{
+  "name": "gitme",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev --hostname 127.0.0.1 --port 3015",
+    "build": "next build",
+    "start": "next start --hostname 127.0.0.1 --port 3015",
+    "lint": "eslint",
+    "companion:dev": "node scripts/companion.mjs dev",
+    "companion:test": "node scripts/companion.mjs test",
+    "companion:build": "node scripts/companion.mjs build",
+    "package:web": "next build && node scripts/package-web.mjs",
+    "package:app": "npm run package:web && npm run companion:build && node scripts/package-app.mjs",
+    "package:installer": "npm run package:web && npm run companion:build && node scripts/package-app.mjs --installer"
+  },
+  "dependencies": {
+    "@tiptap/extension-table": "^3.34.0",
+    "@tiptap/extension-text-align": "^3.34.0",
+    "@tiptap/extension-text-style": "^3.34.0",
+    "@tiptap/pm": "^3.34.0",
+    "@tiptap/react": "^3.34.0",
+    "@tiptap/starter-kit": "^3.34.0",
+    "next": "16.4.6",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "react-markdown": "^10.1.0",
+    "remark-gfm": "^4.0.1"
+  },
+  "devDependencies": {
+    "@types/node": "^24",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.4.6",
+    "typescript": "^5"
+  }
+}

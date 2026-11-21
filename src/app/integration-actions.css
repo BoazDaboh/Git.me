@@ -1,0 +1,13 @@
+.integration-action.button{min-height:40px;padding:10px 15px;font-size:14px;font-weight:600;color:var(--ink);gap:8px}
+.integration-action.button.primary{background:#266bd6;color:#fff;box-shadow:0 3px 10px #3981f426}
+.integration-action.button.primary:hover:not(:disabled){background:#1d58b8;box-shadow:0 4px 12px #3981f43b}
+.integration-secondary.button,.github-hint a.integration-secondary{min-height:40px;padding:10px 14px;border-radius:8px;gap:8px;background:var(--accent-soft);color:#245fba;font-size:14px;font-weight:600;text-decoration:none}
+.integration-secondary.button:hover,.github-hint a.integration-secondary:hover{background:#dceaff;color:#174d9d}
+:root[data-theme="dark"] .integration-secondary.button,:root[data-theme="dark"] .github-hint a.integration-secondary{background:#1c2b43;color:#a9ccff}
+:root[data-theme="dark"] .integration-secondary.button:hover,:root[data-theme="dark"] .github-hint a.integration-secondary:hover{background:#263e60;color:#d1e4ff}
+.integration-action:focus-visible,.integration-secondary:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+.integration-action:disabled{cursor:not-allowed;box-shadow:none}
+.integration-action svg,.integration-secondary svg{flex-shrink:0}
+.integration-destructive.button:hover:not(:disabled){background:#e2525214;color:var(--ink)}
+.vercel-dashboard-link.integration-secondary{margin-top:22px}
+@media(max-width:480px){.integration-action.button,.integration-secondary.button,.github-hint a.integration-secondary{font-size:14px;padding:10px 12px}}
