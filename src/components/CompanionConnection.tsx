@@ -23,6 +23,7 @@ export function CompanionProvider({ children }: { children: ReactNode }) {
       try {
         const result = await fetchCompanionHealth(controller.signal);
         if (active) {
+          if (result.state === "offline" || result.state === "mismatch") { try { sessionStorage.removeItem("gitme.hidden-until.v1"); } catch {} window.dispatchEvent(new Event("gitme:hidden-lock")); }
           setConnection(current => ({ ...result, lastConnectedAt: result.state === "connected" ? result.checkedAt ?? undefined : current.lastConnectedAt }));
           if (result.state === "connected" && previous && (previous.state !== "connected" || previous.startedAt !== result.startedAt)) window.dispatchEvent(new Event("gitme:companion-ready"));
           previous = result;

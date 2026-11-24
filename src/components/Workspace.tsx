@@ -24,6 +24,8 @@ import VercelConnectionPanel from "./VercelConnection";
 import Mark from "./ProjectMark";
 import ProjectForm from "./ProjectForm";
 import ProjectPin from "./ProjectPin";
+import HiddenAccess, { hiddenRootKey } from "./HiddenAccess";
+import ProjectStatusDots from "./ProjectStatusDots";
 import ProjectDetails from "./ProjectDetails";
 import ProjectDirectorySettings from "./ProjectDirectorySettings";
 import WorkspaceNameSettings from "./WorkspaceNameSettings";
@@ -51,7 +53,10 @@ export default function Workspace({ section, projectId, createService = false }:
   const { connection } = useCompanion();
   const [query, setQuery] = useState("");
   const [menu, setMenu] = useState(false);
-  const [filter, setFilter] = useState("All projects");
+  const [hiddenUnlocked, setHiddenUnlocked] = useState(false);
+  const [hiddenAccess, setHiddenAccess] = useState(false);
+  const [hiddenNew, setHiddenNew] = useState(false);
+  const [hiddenRoot, setHiddenRoot] = useState("");
   const [tab, setTab] = useState("Portfolio");
   const [modal, setModal] = useState<{ kind: "project" | "task"; id?: string; status?: Task["status"] } | null>(null);
   const [toast, setToast] = useState("");
@@ -67,6 +72,19 @@ export default function Workspace({ section, projectId, createService = false }:
   const [draftPlatform, setDraftPlatform] = useState("LinkedIn");
   const searchRef = useRef<HTMLInputElement>(null);
 
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const lock = () => { try { sessionStorage.removeItem("gitme.hidden-until.v1"); } catch {} setHiddenUnlocked(false); setHiddenNew(false); };
+    const check = () => {
+      clearTimeout(timer);
+      let until = 0; try { until = Number(sessionStorage.getItem("gitme.hidden-until.v1") || 0); } catch { lock(); return; }
+      if (!Number.isFinite(until) || until <= Date.now()) { lock(); return; }
+      setHiddenUnlocked(true); timer = setTimeout(check, Math.min(until - Date.now(), 60000));
+    };
+    const first = setTimeout(check, 0);
+    window.addEventListener("gitme:hidden-lock", lock); window.addEventListener("focus", check);
+    return () => { clearTimeout(first); clearTimeout(timer); window.removeEventListener("gitme:hidden-lock", lock); window.removeEventListener("focus", check); };
+  }, []);
   useEffect(() => { const tick = () => setNow(Date.now()); const first = window.setTimeout(tick, 0); const timer = window.setInterval(tick, isWorking ? 1000 : 60000); return () => { clearTimeout(first); clearInterval(timer); }; }, [isWorking]);
   useEffect(() => { if (!toast) return; const timer = setTimeout(() => setToast(""), 4500); return () => clearTimeout(timer); }, [toast]);
   useEffect(() => {
@@ -87,7 +105,9 @@ export default function Workspace({ section, projectId, createService = false }:
   const elapsed = data.focus && now ? ((data.focus.elapsedMs ?? 0) + Math.max(0, timerNow - data.focus.started)) / 1000 : 0;
   const needle = query.toLowerCase().trim();
   const orderedProjects = [...data.projects].sort((a, b) => Number(!!b.pinned) - Number(!!a.pinned));
-  const projects = orderedProjects.filter((project) => `${project.name} ${project.description} ${project.stack.join(" ")}`.toLowerCase().includes(needle) && (filter === "All projects" || project.stage === filter));
+  const matchedProjects = orderedProjects.filter((project) => `${project.name} ${project.description} ${project.stack.join(" ")}`.toLowerCase().includes(needle));
+  const projects = matchedProjects.filter(project => !project.hidden);
+  const hiddenProjects = matchedProjects.filter(project => !!project.hidden);
   const tasks = data.tasks.filter((task) => `${task.title} ${data.projects.find((p) => p.id === task.project)?.name}`.toLowerCase().includes(needle));
   const activeProject = data.projects.find((project) => project.id === projectId);
   const editing = data.projects.find((project) => project.id === modal?.id);
@@ -106,17 +126,29 @@ export default function Workspace({ section, projectId, createService = false }:
   function report() {
     const week = data.sessions.filter((session) => session.ended >= Date.now() - 7 * 86400000);
     const total = week.reduce((sum, session) => sum + session.ended - session.started, 0);
-    return `# Git/Me workspace report\n\nGenerated ${new Date().toLocaleDateString("en-GB")}\n\nBased on your local workspace records. \n\n## Focus: last 7 days\n${week.length} completed sessions, ${clock(total / 1000)} total.\n\n## Current projects\n${data.projects.map((p) => `- ${p.name}: ${p.stage}`).join("\n")}\n\n## Current task snapshot\n${data.tasks.map((t) => `- [${t.status === "Done" ? "x" : " "}] ${t.title} (${t.status})`).join("\n")}\n`;
+    return `# Git/Me workspace report\n\nGenerated ${new Date().toLocaleDateString("en-GB")}\n\nBased on your local workspace records. \n\n## Focus: last 7 days\n${week.length} completed sessions, ${clock(total / 1000)} total.\n\n## Current projects\n${data.projects.map((p) => `- ${p.name}`).join("\n")}\n\n## Current task snapshot\n${data.tasks.map((t) => `- [${t.status === "Done" ? "x" : " "}] ${t.title} (${t.status})`).join("\n")}\n`;
   }
 
-  function projectTable(compact = false) {
-    return <div className="table-scroll"><table><thead><tr><th>Project</th><th>Stage</th>{!compact && <th>Stack</th>}<th>Workspace</th><th><span className="sr-only">Actions</span></th></tr></thead><tbody>{projects.map((project) => <tr key={project.id} className="project-list-row">
+  function removeProject(id: string, name: string) {
+    if (!window.confirm(`Remove “${name}” from Git/Me? Its saved service profiles and connections will be removed. Notes, tasks, drafts and work history will be kept without a project. Your local files and cloud accounts will not be deleted.`)) return;
+    save((value) => ({ ...value,
+      projects: value.projects.filter((item) => item.id !== id),
+      tasks: value.tasks.map((item) => item.project === id ? { ...item, project: "" } : item),
+      notes: value.notes.map((item) => item.project === id ? { ...item, project: "" } : item),
+      drafts: value.drafts.map((item) => item.project === id ? { ...item, project: "" } : item),
+      sessions: value.sessions.map((item) => item.project === id ? { ...item, project: "" } : item),
+      focus: value.focus?.project === id ? { ...value.focus, project: "" } : value.focus,
+      postContexts: value.postContexts?.filter((item) => item.projectId !== id),
+    }), "Project removed from Git/Me. Local files were kept.");
+  }
+
+  function projectTable(compact = false, rows = projects) {
+    return <div className="table-scroll"><table><thead><tr><th>Project</th>{!compact && <th>Stack</th>}<th>Workspace</th><th><span className="sr-only">Actions</span></th></tr></thead><tbody>{rows.map((project) => <tr key={project.id} className="project-list-row">
       <td><Link className="project-name" href={projectHref(project.id)} aria-label={`Manage ${project.name}`}><Mark project={project}/><span><strong>{project.name}</strong><small>{project.description}</small></span></Link></td>
-      <td><Badge tone={project.stage === "Live" ? "green" : project.stage === "Building" ? "orange" : "neutral"}>{project.stage}</Badge></td>
       {!compact && <td><div className="tags">{project.stack.map((tech) => <span key={tech}>{tech}</span>)}</div></td>}
-      <td><span className="branch"><Icon name="branch" size={14}/>{project.branch}</span></td>
-      <td className="project-open-cell"><ProjectPin project={project}/><Link href={projectHref(project.id)} className="icon-button" aria-label={`Open ${project.name}`}><Icon name="chevron" size={17}/></Link></td>
-    </tr>)}</tbody></table>{projects.length === 0 && <Empty>No projects match your search.</Empty>}</div>;
+      <td><span className="branch"><Icon name="branch" size={14}/>{project.branch}</span> <ProjectStatusDots key={project.id} project={project}/></td>
+      <td className="project-open-cell"><ProjectPin project={project}/><button type="button" className="icon-button" aria-label={`${project.hidden ? "Unhide" : "Hide"} ${project.name}`} title={project.hidden ? "Unhide project" : "Hide project"} onClick={() => save(value => ({...value, projects:value.projects.map(item => item.id === project.id ? {...item,hidden:!item.hidden} : item)}), project.hidden ? "Project unhidden." : "Project hidden from the main list.")}><Icon name={project.hidden ? "eyeOff" : "eye"} size={16}/></button><button type="button" className="icon-button" aria-label={`Remove ${project.name} from Git/Me`} title="Remove project" onClick={() => removeProject(project.id, project.name)}><Icon name="trash" size={16}/></button><Link href={projectHref(project.id)} className="icon-button" aria-label={`Open ${project.name}`}><Icon name="chevron" size={17}/></Link></td>
+    </tr>)}</tbody></table>{rows.length === 0 && <Empty>No projects match your search.</Empty>}</div>;
   }
   function taskRow(task: Task) {
     const project = data.projects.find((project) => project.id === task.project);
@@ -143,12 +175,12 @@ export default function Workspace({ section, projectId, createService = false }:
 
     {section === "overview" && <>
       <ActivityCalendar now={now} focusNow={timerNow}/>
-      <div className="stats-grid">{[{ label: "Total projects", value: data.projects.length, icon: "folder", text: "Across your workspace" }, { label: "In development", value: data.projects.filter((p) => p.stage === "Building").length, icon: "terminal", text: "Your current builds" }, { label: "Open tasks", value: data.tasks.length - done, icon: "flow", text: `${inProgress} in progress` }, { label: "Completed tasks", value: done, icon: "check", text: "In this workspace" }].map((stat) => <div className="stat-card" key={stat.label}><div><span>{stat.label}</span><Icon name={stat.icon} size={17}/></div><strong>{String(stat.value).padStart(2, "0")}</strong><small>{stat.text}</small></div>)}</div>
+      <div className="stats-grid">{[{ label: "Total projects", value: data.projects.length, icon: "folder", text: "Across your workspace" }, { label: "Configured projects", value: data.projects.filter((p) => (p.services ?? []).length > 0).length, icon: "terminal", text: "With saved services" }, { label: "Open tasks", value: data.tasks.length - done, icon: "flow", text: `${inProgress} in progress` }, { label: "Completed tasks", value: done, icon: "check", text: "In this workspace" }].map((stat) => <div className="stat-card" key={stat.label}><div><span>{stat.label}</span><Icon name={stat.icon} size={17}/></div><strong>{String(stat.value).padStart(2, "0")}</strong><small>{stat.text}</small></div>)}</div>
       <section className="panel project-panel"><div className="panel-heading"><h2>Your projects <span>{data.projects.length}</span></h2><Link href="/projects" className="text-link">View all<Icon name="arrow" size={15}/></Link></div>{projectTable(true)}</section>
       <div className="bottom-grid"><section className="panel"><div className="panel-heading"><h2>Up next</h2><Link href="/flow" className="text-link">Open board<Icon name="arrow" size={15}/></Link></div><div className="task-list">{tasks.filter((task) => task.status !== "Done").slice(0, 3).map(taskRow)}{tasks.filter((task) => task.status !== "Done").length === 0 && <Empty>You are all caught up.</Empty>}</div></section><section className="panel quick-panel"><div className="panel-heading"><h2>Within reach</h2><span className="muted">Resources</span></div><div className="quick-links">{[{ label: "API workspace", icon: "terminal", path: "/debug", hint: "Checks & requests" }, { label: "Your toolbox", icon: "tools", path: "/tools", hint: "Saved resources" }, { label: "Weekly report", icon: "chart", path: "/reports", hint: "Review your work" }].map((item) => <Link href={item.path} key={item.path}><span className="quick-icon"><Icon name={item.icon}/></span><div><strong>{item.label}</strong><small>{item.hint}</small></div><Icon name="chevron" size={15}/></Link>)}</div></section></div>
     </>}
 
-    {section === "projects" && !projectId && <><div className="section-controls"><div className="filter-tabs">{["All projects", "Building", "Planning", "Live"].map((value) => <button key={value} className={filter === value ? "selected" : ""} onClick={() => setFilter(value)}>{value}</button>)}</div><span className="muted">{projects.length} projects</span></div><section className="panel">{projectTable()}</section></>}
+    {section === "projects" && !projectId && <><div className="section-controls"><span className="muted">{projects.length} projects</span></div><section className="panel">{projectTable()}</section><section className="panel hidden-projects"><div className="panel-heading"><h2>More projects</h2>{hiddenUnlocked ? <div><button className="button" onClick={() => { const root = localStorage.getItem(hiddenRootKey) || ""; setHiddenRoot(root); if (!root) { setToast("Set a hidden projects folder first."); return; } setHiddenNew(true); setModal({kind:"project"}); }}>New project</button> <button className="button" onClick={() => { sessionStorage.removeItem("gitme.hidden-until.v1"); setHiddenUnlocked(false); }}>Lock</button></div> : <button className="icon-button" aria-label="Open more projects" title="Open more projects" onClick={() => setHiddenAccess(true)}><Icon name="down" size={17}/></button>}</div>{hiddenUnlocked && <><form className="hidden-root-form" onSubmit={event => { event.preventDefault(); const value=String(new FormData(event.currentTarget).get("root") || "").trim(); if (!value) return; try { localStorage.setItem(hiddenRootKey,value); setHiddenRoot(value);setToast("Hidden project folder saved."); } catch { setToast("Could not save the folder in this browser."); } }}><label>Hidden projects root<input name="root" defaultValue={hiddenRoot} placeholder="C:\\Projects\\Hidden" required/></label><button className="button" type="submit">Save folder</button></form>{projectTable(false,hiddenProjects)}</>}</section></>}
 
     {section === "flow" && <><div className="section-controls"><span className="section-label"><Icon name="flow" size={17}/>Project board</span><span className="muted">{data.tasks.length} tasks</span></div><TaskBoard tasks={tasks} query={query} onAddTask={(status) => setModal({ kind: "task", status })} notify={setToast}/><section className="panel flow-panel"><div className="panel-heading"><h2>Project lifecycle</h2><span className="muted">Starting template</span></div><div className="lifecycle">{["Idea", "Planning", "Building", "Review", "Live", "Maintain"].map((step, index) => <div key={step}><span>{String(index + 1).padStart(2, "0")}</span><strong>{step}</strong>{index < 5 && <Icon name="arrow" size={17}/>}</div>)}</div></section></>}
 
@@ -171,7 +203,8 @@ export default function Workspace({ section, projectId, createService = false }:
 
     {aiContextOpen && <Dialog title="Generate post" onClose={() => setAiContextOpen(false)}>{aiContextReady ? <div className="ai-connect-step"><span className="badge">Next step</span><h2>Connect an AI client</h2><p>Connect an MCP client to Git/Me’s local server, then ask it to read your saved context and write a draft.</p><p>Wait for the workspace to show Saved to SQLite before continuing.</p><p>ChatGPT requires a separate connection setup. The Generate button does not call an AI model yet.</p><div className="ai-connect-actions"><button className="button" onClick={() => setAiContextReady(false)}>Back</button><button className="button primary" onClick={() => setAiContextOpen(false)}>Done</button></div></div> : <><p className="ai-context-intro">Choose a repository and save context for your AI client.</p><PostActivityPicker projects={data.projects} onSelect={(project, text, platform) => { setFocusProject(project); setDraftPlatform(platform); setDraft(current => current.trim() ? `${current.trimEnd()}\n\n${text}` : text); setAiContextReady(true); }}/></>}</Dialog>}
     {draftDrawer && <Dialog title="Saved drafts" drawer onClose={() => setDraftDrawer(false)}><section className="drafts drawer-drafts">{data.drafts.filter((post) => post.text.toLowerCase().includes(needle)).map((post) => <article className="panel draft-card" key={post.id}><div><span className="mini-tag">{post.platform}</span><span className="muted">{data.projects.find((p) => p.id === post.project)?.name}</span></div><p>{post.text}</p><div className="draft-identifier"><span>ID: <code>{post.id}</code></span><button className="icon-button" aria-label={`Copy draft ID ${post.id}`} title="Copy draft ID" onClick={() => copy(post.id)}><Icon name="copy" size={15}/></button></div><div className="draft-actions"><button className="icon-button" aria-label="Delete draft" title="Delete draft" onClick={() => { if (!window.confirm("Delete this draft?")) return; save(value => ({ ...value, drafts: value.drafts.filter(item => item.id !== post.id) }), "Draft deleted."); if (editingDraft === post.id) { setEditingDraft(null); setDraft(""); } }}><Icon name="trash" size={16}/></button><button className="text-link" onClick={() => { if (draft.trim() && !window.confirm("Replace the text currently in the editor?")) return; setDraft(post.text); setDraftPlatform(post.platform); setFocusProject(post.project); setEditingDraft(post.id); setDraftDrawer(false); }}>Edit</button><button className="text-link" onClick={() => copy(post.text)}><Icon name="copy" size={14}/>Copy post</button><span className="muted">Not published</span></div></article>)}</section></Dialog>}
-    {modal && <Dialog title={modal.kind === "project" ? editing ? "Edit project" : "New project" : "New task"} onClose={() => setModal(null)}>{modal.kind === "project" ? <ProjectForm key={editing?.id ?? "new"} project={editing} notify={setToast} onCancel={() => setModal(null)} onSaved={(project, created) => { setModal(null); if (created) router.push(projectHref(project.id)); }}/> : <form className="editor-form" onSubmit={submitTask}><label>Task<input name="title" required maxLength={180} autoFocus placeholder="What needs to happen?"/></label><div className="form-row"><label>Project<select name="project" defaultValue={projectId ?? data.projects[0]?.id}>{orderedProjects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}</select></label><label>Priority<select name="priority"><option>Normal</option><option>High</option></select></label></div><div className="dialog-footer"><button className="button" type="button" onClick={() => setModal(null)}>Cancel</button><button className="button primary" type="submit">Add task<Icon name="plus" size={15}/></button></div></form>}</Dialog>}
+    {hiddenAccess && <Dialog title="More projects" onClose={() => setHiddenAccess(false)}><HiddenAccess close={() => setHiddenAccess(false)} onUnlock={() => { if (connection.state !== "connected") { setHiddenAccess(false); setToast("Connect the Go companion to open hidden projects."); return; } sessionStorage.setItem("gitme.hidden-until.v1", String(Date.now() + 60 * 60 * 1000)); setHiddenRoot(localStorage.getItem(hiddenRootKey) || ""); setHiddenUnlocked(true); setHiddenAccess(false); window.dispatchEvent(new Event("focus")); }}/></Dialog>}
+    {modal && <Dialog title={modal.kind === "project" ? editing ? "Edit project" : "New project" : "New task"} onClose={() => { setModal(null); setHiddenNew(false); }}>{modal.kind === "project" ? <ProjectForm key={editing?.id ?? "new"} project={editing} hiddenNew={!editing && hiddenNew} hiddenRoot={hiddenRoot} notify={setToast} onCancel={() => { setModal(null); setHiddenNew(false); }} onSaved={(project, created) => { setModal(null); setHiddenNew(false); if (created) router.push(projectHref(project.id)); }}/> : <form className="editor-form" onSubmit={submitTask}><label>Task<input name="title" required maxLength={180} autoFocus placeholder="What needs to happen?"/></label><div className="form-row"><label>Project<select name="project" defaultValue={projectId ?? data.projects[0]?.id}>{orderedProjects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}</select></label><label>Priority<select name="priority"><option>Normal</option><option>High</option></select></label></div><div className="dialog-footer"><button className="button" type="button" onClick={() => setModal(null)}>Cancel</button><button className="button primary" type="submit">Add task<Icon name="plus" size={15}/></button></div></form>}</Dialog>}
 
     {toast && <div className="toast" role="status"><Icon name="check" size={17}/>{toast}<button className="icon-button" aria-label="Dismiss notification" onClick={() => setToast("")}><Icon name="close" size={15}/></button></div>}
   </div>;

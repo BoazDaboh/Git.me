@@ -1,6 +1,8 @@
 import type { CSSProperties } from "react";
 
 const paths: Record<string, React.ReactNode> = {
+  eye: <><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z"/><circle cx="12" cy="12" r="2.5"/></>,
+  eyeOff: <><path d="M3 3l18 18M10.6 6.1A11 11 0 0 1 12 6c6.5 0 10 6 10 6a13 13 0 0 1-3.1 3.5M6.2 7.6A14 14 0 0 0 2 12s3.5 6 10 6c1.5 0 2.8-.3 4-.8"/></>,
   undo: <path d="M9 7 5 11l4 4M5 11h9a5 5 0 0 1 5 5v1"/>,
   redo: <path d="m15 7 4 4-4 4m4-4h-9a5 5 0 0 0-5 5v1"/>,
   listBullets: <><path d="M10 6h10M10 12h10M10 18h10"/><circle cx="5" cy="6" r="1" fill="currentColor"/><circle cx="5" cy="12" r="1" fill="currentColor"/><circle cx="5" cy="18" r="1" fill="currentColor"/></>,

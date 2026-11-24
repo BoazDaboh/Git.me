@@ -8,7 +8,7 @@ export type Section = "overview" | (typeof sections)[number];
 export type Project = {
   id: string; name: string; initials: string; color: string; description: string;
   stack: string[]; stage: string; progress: number; branch: string;
-  folder: string; url: string; local: string; note: string; logo?: string; pinned?: boolean; services?: ServiceProfile[]; unassignedGitHubLinks?: GitHubLink[]; vercel?: VercelLink; apiRequests?:SavedApiRequest[];
+  folder: string; url: string; local: string; note: string; logo?: string; pinned?: boolean; hidden?: boolean; services?: ServiceProfile[]; unassignedGitHubLinks?: GitHubLink[]; vercel?: VercelLink; apiRequests?:SavedApiRequest[];
 };
 export type Task = { id: string; title: string; project: string; status: "Planned" | "In progress" | "Done"; priority: string; scheduledDate?: string };
 export type LibraryItem = { id: string; folder: "Links" | "Skills" | "Notes" | "Commands"; name: string; category: string; content: string; description: string };

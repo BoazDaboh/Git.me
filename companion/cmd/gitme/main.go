@@ -47,6 +47,7 @@ func newHandlerWithManager(startedAt time.Time, store *workspace.Store, manager 
 
 func newHandlerWithCloud(startedAt time.Time, store *workspace.Store, manager *processes.Manager, githubService *github.Connections, vercelService *vercel.Service) http.Handler {
 	mux := http.NewServeMux()
+	registerProjectTemplates(mux)
 	registerAPIRequests(mux, store)
 	registerProcesses(mux, manager)
 	registerGitHub(mux, store, githubService)

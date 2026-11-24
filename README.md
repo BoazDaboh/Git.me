@@ -29,6 +29,14 @@ Keep both terminals running. The companion health endpoint is http://127.0.0.1:4
 
 The `installer/` folder contains the installer configuration; it is not itself a downloadable installer. Built installers can be attached to GitHub Releases when ready.
 
+## Projects and health
+
+- Create a project from an existing folder, or generate a starter structure with a Next.js, React or plain web frontend and a Go, Node.js or PHP API. The parent folder must exist; an existing destination is never overwritten. Generated folders do not install frameworks or initialize Git.
+- Project health shows local frontend and API responses, plus the status of configured deployment services. Vercel production status can be checked through a linked service. Other providers remain unverified.
+- Use the eye icon to move projects into **More projects**. Set a browser-local code to open that section and choose a separate root folder for newly created projects there. It locks after one hour, on manual lock, or when the companion disconnects. Hiding an existing project does not move its folder.
+- More projects is a visibility feature, not file encryption or a security boundary. Hidden projects may still appear elsewhere in Git/Me, and the browser-local code and folder setting do not transfer automatically to another browser or PC.
+- Removing a project from Git/Me removes its saved service profiles, while leaving local files and shared cloud accounts intact. Notes, tasks, drafts and work sessions are retained without the project association.
+
 ## Current features
 
 - Services have custom titles such as Test, Production or Review. Use Rename beside a service title, or Service title in the editor. Titles are labels and do not change branches or provider environments. Deploy groups hosting connections; Vercel is the first supported provider.
